@@ -56,23 +56,26 @@ logger = logging.getLogger("mongodb-keepalive")
 def mask_uri(uri: str) -> str:
     """
     Mask password and sensitive info in MongoDB URI for safe logging.
-    Example: mongodb+srv://user:secret123@cluster.mongodb.net -> mongodb+srv://user:****@cluster.mongodb.net
+    Example: mongodb+srv://user:secret123@cluster.mongodb.net/ -> mongodb+srv://us***:****@cluster.mongodb.net/
     """
     if not uri or not isinstance(uri, str):
         return "<invalid-uri>"
 
     try:
-        # Match standard connection scheme
-        pattern = r"^(mongodb(?:\+srv)?://)([^:]+):([^@]+)@(.+)$"
-        match = re.match(pattern, uri.strip())
-        if match:
-            scheme, user, _password, host_and_params = match.groups()
-            masked_user = user[:2] + "***" if len(user) > 2 else "***"
-            return f"{scheme}{masked_user}:****@{host_and_params}"
+        if "://" in uri:
+            scheme, rest = uri.split("://", 1)
+            if "@" in rest:
+                user_info, host_info = rest.rsplit("@", 1)
+                if ":" in user_info:
+                    user, _ = user_info.split(":", 1)
+                    masked_user = user[:2] + "***" if len(user) > 2 else "***"
+                    return f"{scheme}://{masked_user}:****@{host_info}"
+                else:
+                    return f"{scheme}://****@{host_info}"
+            return f"{scheme}://{rest}"
     except Exception:
         pass
-    
-    # Fallback masking if regex fails
+
     return uri[:12] + "..." + uri[-12:] if len(uri) > 24 else "****"
 
 
@@ -179,9 +182,21 @@ def ping_and_modify_cluster(
         if not ping_res or ping_res.get("ok") != 1:
             raise Exception(f"Admin ping response not OK: {ping_res}")
 
-        # 2. Access database & collection
-        db = client[db_name]
-        collection = db[collection_name]
+        # 2. Access database & collection with safe fallback
+        db_target = db_name.strip() if (db_name and isinstance(db_name, str) and db_name.strip()) else ""
+        coll_target = collection_name.strip() if (collection_name and isinstance(collection_name, str) and collection_name.strip()) else "keepalive_status"
+
+        if not db_target:
+            try:
+                db = client.get_default_database()
+                db_target = db.name if db.name else "keepalive_db"
+            except Exception:
+                db_target = "keepalive_db"
+                db = client[db_target]
+        else:
+            db = client[db_target]
+
+        collection = db[coll_target]
 
         # 3. Create / Modify test document with dummy data
         doc_id = "keepalive_ping_record"
@@ -203,7 +218,7 @@ def ping_and_modify_cluster(
             "$currentDate": {"updated_at": True}
         }
 
-        logger.info(f"Updating test document in collection [{db_name}.{collection_name}] on [{name}]...")
+        logger.info(f"Updating test document in collection [{db_target}.{coll_target}] on [{name}]...")
         up_res = collection.update_one({"_id": doc_id}, update_payload, upsert=True)
 
         # 4. Verify document write by reading it back
@@ -217,7 +232,7 @@ def ping_and_modify_cluster(
         result["status"] = "SUCCESS"
         result["duration_ms"] = duration_ms
         result["total_pings"] = total_pings
-        result["message"] = f"Successfully updated collection '{collection_name}' (Total pings: {total_pings})"
+        result["message"] = f"Successfully updated collection '{coll_target}' in database '{db_target}' (Total pings: {total_pings})"
         logger.info(f"✅ [{name}] Keep-alive succeeded in {duration_ms}ms! Total pings: {total_pings}")
 
     except PyMongoError as pe:
@@ -317,8 +332,12 @@ def main() -> int:
     logger.info(" Starting MongoDB Cluster Keep-Alive Check ")
     logger.info("==========================================")
 
-    db_name = os.getenv("MONGODB_DB_NAME", "keepalive_db")
-    collection_name = os.getenv("MONGODB_COLLECTION_NAME", "keepalive_status")
+    raw_db = os.getenv("MONGODB_DB_NAME", "").strip()
+    db_name = raw_db if raw_db else "keepalive_db"
+
+    raw_coll = os.getenv("MONGODB_COLLECTION_NAME", "").strip()
+    collection_name = raw_coll if raw_coll else "keepalive_status"
+
     discord_webhook = os.getenv("DISCORD_WEBHOOK_URL", "").strip()
 
     clusters = parse_mongodb_uris()

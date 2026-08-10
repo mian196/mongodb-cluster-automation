@@ -58,6 +58,7 @@ class TestMongoDBKeepAlive(unittest.TestCase):
         # Mocking MongoDB Client and DB collection methods
         mock_client_inst = MagicMock()
         mock_mongo_client.return_value = mock_client_inst
+        mock_client_inst.get_default_database.side_effect = Exception("No default database")
         mock_client_inst.admin.command.return_value = {"ok": 1}
 
         mock_db = MagicMock()
@@ -73,6 +74,27 @@ class TestMongoDBKeepAlive(unittest.TestCase):
         self.assertEqual(result["status"], "SUCCESS")
         self.assertEqual(result["total_pings"], 5)
         mock_collection.update_one.assert_called_once()
+
+    @patch("keepalive.MongoClient")
+    def test_ping_and_modify_cluster_empty_db_name(self, mock_mongo_client):
+        mock_client_inst = MagicMock()
+        mock_mongo_client.return_value = mock_client_inst
+        mock_client_inst.get_default_database.side_effect = Exception("No default database")
+        mock_client_inst.admin.command.return_value = {"ok": 1}
+
+        mock_db = MagicMock()
+        mock_collection = MagicMock()
+        mock_client_inst.__getitem__.return_value = mock_db
+        mock_db.__getitem__.return_value = mock_collection
+        mock_collection.find_one.return_value = {"_id": "keepalive_ping_record", "total_pings": 1}
+
+        cluster_info = {"name": "TestCluster", "uri": "mongodb+srv://user:pass@cluster.net"}
+        # Pass empty strings to test fallback behavior
+        result = ping_and_modify_cluster(cluster_info, db_name="   ", collection_name="")
+
+        self.assertEqual(result["status"], "SUCCESS")
+        mock_client_inst.__getitem__.assert_called_with("keepalive_db")
+        mock_db.__getitem__.assert_called_with("keepalive_status")
 
     @patch("keepalive.requests.post")
     def test_send_discord_notification(self, mock_post):
