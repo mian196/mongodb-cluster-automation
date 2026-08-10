@@ -174,7 +174,19 @@ def ping_and_modify_cluster(
     client: Optional[MongoClient] = None
     try:
         logger.info(f"Connecting to MongoDB cluster [{name}] ({masked})...")
-        client = MongoClient(uri, serverSelectionTimeoutMS=timeout_ms, connectTimeoutMS=timeout_ms)
+        
+        # Configure TLS CA certificates if certifi is available
+        client_kwargs = {
+            "serverSelectionTimeoutMS": timeout_ms,
+            "connectTimeoutMS": timeout_ms
+        }
+        try:
+            import certifi
+            client_kwargs["tlsCAFile"] = certifi.where()
+        except ImportError:
+            pass
+
+        client = MongoClient(uri, **client_kwargs)
         
         # 1. Test connection with ping command
         logger.info(f"Pinging cluster [{name}]...")
