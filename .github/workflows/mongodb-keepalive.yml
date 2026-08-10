@@ -1,0 +1,37 @@
+name: MongoDB Free Cluster Keep-Alive
+
+on:
+  schedule:
+    # Runs at 00:00 UTC on the 1st of every month
+    - cron: '0 0 1 * *'
+  workflow_dispatch:
+    # Allows manual triggering from the GitHub Actions UI
+
+jobs:
+  keepalive:
+    name: Run MongoDB Keep-Alive Ping
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Execute MongoDB Keep-Alive Tool
+        env:
+          MONGODB_URIS: ${{ secrets.MONGODB_URIS }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          MONGODB_DB_NAME: ${{ secrets.MONGODB_DB_NAME }}
+          MONGODB_COLLECTION_NAME: ${{ secrets.MONGODB_COLLECTION_NAME }}
+        run: python keepalive.py
