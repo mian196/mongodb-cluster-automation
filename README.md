@@ -78,7 +78,7 @@ You can also set individual secrets like `MONGODB_URI_PROD` and `MONGODB_URI_DEV
 4. Copy the Webhook URL and paste it into the `DISCORD_WEBHOOK_URL` GitHub Secret.
 
 ### Example Discord Notification
-![Discord Notification Preview](https://raw.githubusercontent.com/mongodb/mongo/master/docs/leaf.png)
+![Discord Notification Preview](assets/discord-notification-preview.png)
 
 When the workflow executes, Discord receives a detailed summary:
 - **Green Embed:** All clusters healthy and updated.

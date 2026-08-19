@@ -311,14 +311,14 @@ def send_discord_notification(webhook_url: str, results: List[Dict[str, Any]]) -
         "fields": fields,
         "footer": {
             "text": "MongoDB Cluster Automation • Keep-Alive Bot",
-            "icon_url": "https://www.mongodb.com/assets/images/global/favicon.ico"
+            "icon_url": "https://raw.githubusercontent.com/github/explore/80688e429a7d4ef2fca1e82350fe8e3517d3494d/topics/mongodb/mongodb.png"
         },
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
     payload = {
         "username": "MongoDB Keep-Alive Bot",
-        "avatar_url": "https://www.mongodb.com/assets/images/global/favicon.ico",
+        "avatar_url": "https://raw.githubusercontent.com/github/explore/80688e429a7d4ef2fca1e82350fe8e3517d3494d/topics/mongodb/mongodb.png",
         "embeds": [embed]
     }
 
